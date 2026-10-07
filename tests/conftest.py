@@ -59,7 +59,11 @@ def env(tmp_path, monkeypatch):
 
     # Swap the app's database dependency for our throwaway one.
     app.dependency_overrides[get_db] = override_get_db
-    with TestClient(app) as client:
+    # raise_server_exceptions=False: Starlette's ServerErrorMiddleware always
+    # re-raises unhandled exceptions after sending the 500 response (so real
+    # servers can log them). The Phase 8 internal-failure tests must see the
+    # safe 500 response, not the re-raised exception.
+    with TestClient(app, raise_server_exceptions=False) as client:
         yield client, TestingSession, upload_dir
     app.dependency_overrides.clear()
     engine.dispose()

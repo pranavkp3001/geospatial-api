@@ -114,32 +114,52 @@ def parse_shapefile(shp_path: Path) -> list[ParsedFeature]:
             The API layer turns this into HTTP 400.
     """
     try:
-        # encodingErrors="replace" — a stray non-decodable byte in the
-        # DBF must never crash the upload; it just shows as "?"" in one
-        # attribute value.
-        reader = shapefile.Reader(str(shp_path), encodingErrors="replace")
-    except Exception as exc:
-        # pyshp raises struct.error / ShapefileException / ... depending
-        # on which part of an untrusted file is broken.
-        raise UploadValidationError(f"Shapefile could not be read: {exc}") from exc
+        # The file handles are opened *here* by design. When pyshp opens
+        # files itself from a path and construction fails halfway (for
+        # example a corrupt .dbf), it leaks that handle; the temporary
+        # extraction directory can then not be deleted on Windows (file
+        # still in use) and a clean 400 turns into a 500. Handing pyshp
+        # file objects we own means the `with` block closes every handle,
+        # success and failure alike, before the temp dir is removed.
+        with (
+            open(shp_path, "rb") as shp_fh,
+            open(Path(shp_path).with_suffix(".shx"), "rb") as shx_fh,
+            open(Path(shp_path).with_suffix(".dbf"), "rb") as dbf_fh,
+        ):
+            try:
+                # encodingErrors="replace" — a stray non-decodable byte in
+                # the DBF must never crash the upload; it just shows as
+                # "?" in one attribute value.
+                reader = shapefile.Reader(
+                    shp=shp_fh,
+                    shx=shx_fh,
+                    dbf=dbf_fh,
+                    encodingErrors="replace",
+                )
+            except Exception as exc:
+                # pyshp raises struct.error / ShapefileException / ...
+                # depending on which part of an untrusted file is broken.
+                raise UploadValidationError(f"Shapefile could not be read: {exc}") from exc
 
-    try:
-        if reader.numRecords is None:
-            raise UploadValidationError(
-                "Shapefile's attribute table (.dbf) could not be read."
-            )
-        crs = _crs_from_prj(shp_path)
-        features: list[ParsedFeature] = []
-        for index in range(reader.numRecords):
-            parsed = _parse_feature(reader, index, crs)
-            if parsed is not None:
-                # Index comes from the number of features kept so far,
-                # so skipped records leave no gaps (same as KML).
-                parsed.feature_index = len(features)
-                features.append(parsed)
-        return features
-    finally:
-        reader.close()  # close file handles before the temp dir is deleted
+            try:
+                if reader.numRecords is None:
+                    raise UploadValidationError(
+                        "Shapefile's attribute table (.dbf) could not be read."
+                    )
+                crs = _crs_from_prj(shp_path)
+                features: list[ParsedFeature] = []
+                for index in range(reader.numRecords):
+                    parsed = _parse_feature(reader, index, crs)
+                    if parsed is not None:
+                        # Index comes from the number of features kept so
+                        # far, so skipped records leave no gaps (as in KML).
+                        parsed.feature_index = len(features)
+                        features.append(parsed)
+                return features
+            finally:
+                reader.close()  # close file handles before the temp dir is deleted
+    except UploadValidationError:
+        raise
 
 
 def _parse_feature(

@@ -109,8 +109,11 @@ def validate_zip(path: Path) -> None:
     except (RuntimeError, OSError, zlib.error) as exc:
         # RuntimeError: encrypted/unreadable members.
         # zlib.error:    broken compressed data.
+        # OSError:       storage-level read failure — its message can carry
+        # the file's absolute path, so it must NOT be reflected to the
+        # client; the exception is kept chained for server-side logs only.
         raise UploadValidationError(
-            f"ZIP archive could not be read: {exc}"
+            "ZIP archive could not be read (it may be corrupt or encrypted)."
         ) from exc
 
     if corrupt_member is not None:
