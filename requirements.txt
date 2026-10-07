@@ -17,5 +17,9 @@ fastkml
 # Phase 5: Shapefile processing (pure-Python .shp/.shx/.dbf reader)
 pyshp
 
+# Phase 6: Geometry measurements + CRS handling
+shapely
+pyproj
+
 # Phase 5+: Added when needed
 # geopandas

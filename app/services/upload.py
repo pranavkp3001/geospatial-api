@@ -31,6 +31,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import Feature, UploadedFile
+from app.processing.geometry import calculate_measurement
 from app.processing.kml_parser import parse_kml
 from app.processing.parsed_feature import ParsedFeature
 from app.processing.shapefile_parser import locate_shapefile, parse_shapefile
@@ -159,10 +160,18 @@ def _persist_features(
     """Turn parsed features (KML or Shapefile) into Feature rows.
 
     They land in the caller's transaction, so a later failure rolls
-    them back with everything else. Measurement columns stay NULL:
-    measuring is a later phase.
+    them back with everything else. Measurement fields are filled by
+    `calculate_measurement` (Phase 6): Point/MultiPoint features and
+    anything with a missing, invalid, or non-metre CRS keep NULL values
+    rather than a guessed number. The stored geometry and CRS are never
+    altered by measuring.
     """
     for parsed in features:
+        measurement = calculate_measurement(
+            parsed.geometry,
+            parsed.geometry_type,
+            parsed.crs,
+        )
         db.add(
             Feature(
                 file=record,  # sets file_id from record.id
@@ -171,9 +180,9 @@ def _persist_features(
                 geometry=parsed.geometry,  # WKT text
                 crs=parsed.crs,            # KML: "EPSG:4326"; Shapefile: from .prj or None
                 properties=parsed.properties,
-                measurement_type=None,
-                measurement_value=None,
-                measurement_unit=None,
+                measurement_type=measurement.measurement_type,
+                measurement_value=measurement.measurement_value,
+                measurement_unit=measurement.measurement_unit,
             )
         )
     return len(features)
