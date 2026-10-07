@@ -1,0 +1,21 @@
+# Phase 1: Core framework
+fastapi
+uvicorn[standard]
+sqlalchemy
+pydantic-settings
+
+# Phase 2: Tests
+pytest
+httpx
+
+# Phase 3: Multipart file uploads
+python-multipart
+
+# Phase 4: KML parsing (lxml is optional — it only affects pretty-printing)
+fastkml
+
+# Phase 5: Shapefile processing (pure-Python .shp/.shx/.dbf reader)
+pyshp
+
+# Phase 5+: Added when needed
+# geopandas
