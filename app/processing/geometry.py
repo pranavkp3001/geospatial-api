@@ -42,8 +42,14 @@ from dataclasses import dataclass
 from functools import lru_cache
 
 import numpy as np
-import shapely
 from pyproj import CRS, Transformer
+
+# Import the shapely helpers explicitly. `import shapely` alone does NOT
+# bind submodules (shapely.wkt, ...) as attributes on the package, so
+# `shapely.wkt.loads(...)` would raise AttributeError in a process where
+# nothing else happened to import the submodule first (seen under a fresh
+# uvicorn run even though tests pass — their import graph masked it).
+from shapely import transform_coordseq, wkt
 
 logger = logging.getLogger(__name__)
 
@@ -207,7 +213,7 @@ def _measurement_kind(geometry_type: str) -> str | None:
 def _reproject(geometry, transformer: Transformer) -> "shapely.Geometry":
     """Reproject a working copy of `geometry`; the original stays untouched.
 
-    shapely.transform_coordseq hands its callback a single (N, 2)
+    transform_coordseq hands its callback a single (N, 2)
     coordinate array, while pyproj's Transformer.transform wants x and y
     as separate arguments — the `_xy` closure bridges the two calling
     shapes (the transform never sees the stored geometry itself).
@@ -217,13 +223,13 @@ def _reproject(geometry, transformer: Transformer) -> "shapely.Geometry":
         new_x, new_y = transformer.transform(x, y)
         return np.column_stack((new_x, new_y))
 
-    return shapely.transform_coordseq(geometry, _xy)
+    return transform_coordseq(geometry, _xy)
 
 
 def _parse_geometry(geometry_wkt: str):
     """Shapely geometry, or None (with a warning) if the WKT is bad."""
     try:
-        return shapely.wkt.loads(geometry_wkt)
+        return wkt.loads(geometry_wkt)
     except Exception as exc:
         logger.warning("Measurement skipped: cannot parse WKT %r: %s.", geometry_wkt, exc)
         return None

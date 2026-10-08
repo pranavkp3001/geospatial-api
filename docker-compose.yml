@@ -1,0 +1,27 @@
+# Single-service compose file for the Aereo Geospatial File Measurement API.
+#
+# The SQLite database file and uploaded files are persisted in named volumes
+# so they survive container restarts and rebuilds. No extra services are used
+# (no Redis, PostgreSQL, etc.) — the app is self-contained.
+#
+#     docker compose up --build
+#     docker compose down
+
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      # Absolute in-container paths: ./uploads and ./aereo.db would resolve
+      # against /app, which is remote-friendly but invisible to the volumes.
+      UPLOAD_DIR: /app/uploads
+      DATABASE_URL: sqlite:////app/data/aereo.db
+      MAX_FILE_SIZE_MB: "10"
+    volumes:
+      - uploads-data:/app/uploads
+      - db-data:/app/data
+
+volumes:
+  uploads-data:
+  db-data:

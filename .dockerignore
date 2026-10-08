@@ -1,0 +1,24 @@
+# Dependencies / virtual environments
+venv/
+.venv/
+
+# Python bytecode and caches
+__pycache__/
+.pytest_cache/
+*.pyc
+*.pyo
+
+# Git and environment files
+.git/
+.env
+.env.example
+
+# Runtime artifacts (not needed inside the image)
+aereo.db
+*.db
+*.sqlite3
+uploads/
+data/
+
+# Tests are not required in the production image
+tests/
